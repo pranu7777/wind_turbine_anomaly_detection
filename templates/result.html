@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title or "Prediction Results" }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-image: url('/static/background.jpg');
+            background-size: cover;
+            background-attachment: fixed;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.96);
+            margin: 60px auto;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 1000px;
+            box-shadow: 0 0 12px rgba(0,0,0,0.3);
+            text-align: center;
+            color: #222;
+        }
+        h1 {
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #009688;
+        }
+        p {
+            font-size: 17px;
+            margin: 6px 0;
+            color: #333;
+        }
+        .final-risk {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 25px auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .final-risk .emoji {
+            font-size: 30px;
+            margin-right: 12px;
+        }
+        .risk-breakdown {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 25px;
+        }
+        .risk-breakdown span {
+            display: inline-block;
+            margin: 0 15px;
+        }
+        .risk-icon {
+            font-size: 26px;
+            vertical-align: middle;
+        }
+        .btn-back {
+            display: inline-block;
+            margin-top: 25px;
+            padding: 10px 20px;
+            background-color: #1976d2;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+        }
+        th, td {
+            padding: 8px 12px;
+            text-align: center;
+            border: 1px solid #ccc;
+        }
+        th {
+            background-color: #e8f0fe;
+            font-weight: bold;
+        }
+        canvas {
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 {{ title or "Anomaly Risk Prediction" }}</h1>
+
+    {% if filename %}
+        <p><strong>📄 File:</strong> {{ filename }}</p>
+    {% endif %}
+
+    {% if total is defined %}
+        <p><strong>Total Rows:</strong> {{ total }} |
+           <strong>Anomalies:</strong> {{ anomalies }} |
+           <strong>Normal:</strong> {{ normal }}</p>
+        <p><strong>Max Probability:</strong> {{ max_prob }} |
+           <strong>Average Probability:</strong> {{ avg_prob }}</p>
+    {% endif %}
+
+    {% if dominant_risk %}
+    <div class="final-risk">
+        <span class="emoji">{{ dominant_risk_icon }}</span> {{ dominant_risk }}
+    </div>
+    {% endif %}
+
+    {% if risk_level_summary %}
+    <div class="risk-breakdown">
+        <span class="risk-icon">🟢</span> Safe: {{ risk_level_summary["🟢 Safe"] }}
+        <span class="risk-icon">🟡</span> Moderate Risk: {{ risk_level_summary["🟡 Moderate Risk"] }}
+        <span class="risk-icon">🔴</span> High Risk: {{ risk_level_summary["🔴 High Risk"] }}
+    </div>
+    {% endif %}
+
+    {% if chart %}
+    <div style="width: 60%; margin: auto;">
+        <canvas id="barChart"></canvas>
+    </div>
+
+    <div style="width: 90%; margin: 30px auto;">
+        <canvas id="probChart"></canvas>
+    </div>
+    {% endif %}
+
+    {% if columns and data %}
+    <h2 style="margin-top: 35px;">📋 Results</h2>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                        <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                <tr>
+                    {% for item in row %}
+                        <td>{{ item }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+{% if chart_data %}
+<script>
+const ctx = document.createElement('canvas');
+ctx.id = 'forecastLineChart';
+document.querySelector('.container').appendChild(ctx);
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ chart_data.labels|safe }},
+        datasets: [
+            {
+                label: 'Real',
+                data: {{ chart_data.actual|safe }},
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: 'Forecast',
+                data: {{ chart_data.forecast|safe }},
+                borderColor: '#ff5722',
+                backgroundColor: 'rgba(255, 87, 34, 0.1)',
+                fill: false,
+                tension: 0.1
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Timestamp'
+                },
+                ticks: {
+                    maxTicksLimit: 12
+                }
+            },
+            y: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Sensor Value'
+                }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+
+    {% if show_sensor_form %}
+    <hr style="margin: 40px 0;">
+    <form action="/forecast/sensor" method="post">
+        <label for="sensor_number"><strong>🔍 Enter Sensor Number:</strong></label><br>
+        <input type="number" name="sensor_number" placeholder="e.g., 2" min="0" required>
+        <button type="submit" class="btn-back" style="margin-left: 10px;">Show Forecast</button>
+    </form>
+    {% endif %}
+
+    <a href="/" class="btn-back">⬅ Back to Home</a>
+</div>
+
+{% if chart %}
+<script>
+const ctx = document.getElementById('barChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: ['Normal (0)', 'Anomaly (1)'],
+        datasets: [{
+            label: 'Count',
+            data: [{{ normal }}, {{ anomalies }}],
+            backgroundColor: ['#42a5f5', '#ef5350']
+        }]
+    },
+    options: {
+        plugins: {
+            title: {
+                display: true,
+                text: 'Prediction Distribution'
+            },
+            legend: { display: false }
+        }
+    }
+});
+
+const probCtx = document.getElementById('probChart').getContext('2d');
+new Chart(probCtx, {
+    type: 'line',
+    data: {
+        labels: [...Array({{ probabilities|length }}).keys()],
+        datasets: [{
+            label: 'Anomaly Probability',
+            data: {{ probabilities }},
+            fill: true,
+            borderColor: '#ffa000',
+            backgroundColor: 'rgba(255,160,0,0.2)',
+            pointRadius: 0
+        }]
+    },
+    options: {
+        plugins: {
+            title: {
+                display: true,
+                text: 'Anomaly Probability Trend'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 1
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+</body>
+</html>
